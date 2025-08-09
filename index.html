@@ -1,29 +1,51 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
+<html lang="no">
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My First Render Website</title>
+    <title>Fingeravtrykk Side</title>
     <style>
-      body {
-        font-family: sans-serif;
-        text-align: center;
-        padding: 50px;
-        background-color: #f0f0f0;
-      }
-      h1 {
-        color: #333;
-      }
-      p {
-        color: #666;
-      }
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 50px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+        }
+        p {
+            color: #666;
+        }
     </style>
-  </head>
-  <body>
-    <h1>Hello, Render and the World!</h1>
-    <p>
-      This is my first website deployed with Render and connected to a custom
-      domain.
-    </p>
-  </body>
+</head>
+<body>
+    <h1>Velkommen til fingeravtrykk-siden!</h1>
+    <p>Vi genererer et unikt fingeravtrykk basert på din nettleser og enhet.</p>
+    <p id="fingerprint">Laster inn fingeravtrykk...</p>
+
+    <script>
+        // Legger inn den nye koden for å hente fingeravtrykk via proxy-subdomenet.
+        const fpPromise = import('https://fp.bygningbesiktigelse.no/web/v3/ZZFYiRw2Rbd30yRSoOld')
+          .then(FingerprintJS => FingerprintJS.load({
+            endpoint: [
+              "https://fp.bygningbesiktigelse.no",
+              FingerprintJS.defaultEndpoint
+            ],
+            region: "eu"
+          }))
+        // Henter fingeravtrykket og viser det på siden.
+        fpPromise
+          .then(fp => fp.get())
+          .then(result => {
+            const visitorId = result.visitorId
+            document.getElementById('fingerprint').innerText = 'Ditt fingeravtrykk er: ' + visitorId
+            console.log(visitorId)
+          })
+          .catch(error => {
+            document.getElementById('fingerprint').innerText = 'Kunne ikke generere fingeravtrykk.'
+            console.error(error)
+          })
+    </script>
+</body>
 </html>
