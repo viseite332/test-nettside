@@ -1,123 +1,120 @@
 <!DOCTYPE html>
 <html lang="no">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <title>FingerprintJS Pro Demo</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 2rem;
-            background-color: #f5f5f5;
-        }
-        h1 {
-            color: #333;
-        }
-        #status {
-            font-weight: bold;
-            margin: 1rem 0;
-        }
-        pre {
-            background: #eee;
-            padding: 1rem;
-            border-radius: 5px;
-            overflow-x: auto;
-        }
+      body {
+        font-family: Arial, sans-serif;
+        padding: 2rem;
+        background-color: #f5f5f5;
+      }
+      h1 {
+        color: #333;
+      }
+      #status {
+        font-weight: bold;
+        margin: 1rem 0;
+      }
+      pre {
+        background: #eee;
+        padding: 1rem;
+        border-radius: 5px;
+        overflow-x: auto;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>🧠 FingerprintJS Pro</h1>
     <div id="status">🔄 Laster...</div>
     <pre id="output">Venter på fingerprint...</pre>
 
-    <script>
-        const TTL_MINUTTER = 60;
-        const STORAGE_KEY = "fingerprintData";
-        let fingerprintAlleredeHentet = false;
+    <script type="module">
+      const TTL_MINUTTER = 60;
+      const STORAGE_KEY = "fingerprintData";
+      let fingerprintAlleredeHentet = false;
 
-        const statusEl = document.getElementById("status");
-        const outputEl = document.getElementById("output");
+      const statusEl = document.getElementById("status");
+      const outputEl = document.getElementById("output");
 
-        function erGyldig(data) {
-            if (!data || !data.timestamp) return false;
-            const nå = new Date();
-            const da = new Date(data.timestamp);
-            const diffMinutter = (nå - da) / 1000 / 60;
-            return diffMinutter < TTL_MINUTTER;
+      function erGyldig(data) {
+        if (!data || !data.timestamp) return false;
+        const nå = new Date();
+        const da = new Date(data.timestamp);
+        const diffMinutter = (nå - da) / 1000 / 60;
+        return diffMinutter < TTL_MINUTTER;
+      }
+
+      function hentFraStorage() {
+        try {
+          const fraSession = sessionStorage.getItem(STORAGE_KEY);
+          if (fraSession) return JSON.parse(fraSession);
+
+          const fraLocal = localStorage.getItem(STORAGE_KEY);
+          if (fraLocal) return JSON.parse(fraLocal);
+        } catch (e) {
+          console.warn("❌ Kunne ikke lese fra lagring:", e);
+        }
+        return null;
+      }
+
+      function lagreFingerprint(data) {
+        try {
+          const lagretData = {
+            ...data,
+            timestamp: new Date().toISOString(),
+          };
+          const str = JSON.stringify(lagretData);
+          sessionStorage.setItem(STORAGE_KEY, str);
+          localStorage.setItem(STORAGE_KEY, str);
+        } catch (e) {
+          console.warn("⚠️ Klarte ikke å lagre fingerprint:", e);
+        }
+      }
+
+      async function hentOgVisFingerprint() {
+        if (fingerprintAlleredeHentet) {
+          statusEl.textContent =
+            "⛔ Fingerprint allerede hentet i denne økten.";
+          return;
         }
 
-        function hentFraStorage() {
-            try {
-                const fraSession = sessionStorage.getItem(STORAGE_KEY);
-                if (fraSession) return JSON.parse(fraSession);
+        const cached = hentFraStorage();
 
-                const fraLocal = localStorage.getItem(STORAGE_KEY);
-                if (fraLocal) return JSON.parse(fraLocal);
-            } catch (e) {
-                console.warn("❌ Kunne ikke lese fra lagring:", e);
-            }
-            return null;
+        if (erGyldig(cached)) {
+          statusEl.textContent = "♻️ Viser fingerprint fra cache.";
+          outputEl.textContent = JSON.stringify(cached, null, 2);
+          return;
         }
 
-        function lagreFingerprint(data) {
-            try {
-                const lagretData = {
-                    ...data,
-                    timestamp: new Date().toISOString(),
-                };
-                const str = JSON.stringify(lagretData);
-                sessionStorage.setItem(STORAGE_KEY, str);
-                localStorage.setItem(STORAGE_KEY, str);
-            } catch (e) {
-                console.warn("⚠️ Klarte ikke å lagre fingerprint:", e);
-            }
+        fingerprintAlleredeHentet = true;
+
+        try {
+          statusEl.textContent = "📦 Laster Fingerprint-agent...";
+          const fpModule = await import(
+            "https://fpjscdn.net/v3/ZZFYiRw2Rbd30yRSoOld"
+          );
+          const fp = await fpModule.load();
+
+          statusEl.textContent = "🔍 Henter fingerprint-data...";
+          const result = await fp.get({ extendedResult: true });
+
+          lagreFingerprint(result);
+
+          statusEl.textContent = "✅ Fingerprint hentet!";
+          outputEl.textContent = JSON.stringify(
+            { ...result, timestamp: new Date().toISOString() },
+            null,
+            2
+          );
+        } catch (err) {
+          statusEl.textContent = "❌ Feil ved henting av fingerprint.";
+          outputEl.textContent = err.message;
+          console.error(err);
         }
+      }
 
-        async function hentOgVisFingerprint() {
-            if (fingerprintAlleredeHentet) {
-                statusEl.textContent =
-                    "⛔ Fingerprint allerede hentet i denne økten.";
-                return;
-            }
-
-            const cached = hentFraStorage();
-
-            if (erGyldig(cached)) {
-                statusEl.textContent = "♻️ Viser fingerprint fra cache.";
-                outputEl.textContent = JSON.stringify(cached, null, 2);
-                return;
-            }
-
-            fingerprintAlleredeHentet = true;
-
-            try {
-                statusEl.textContent = "📦 Laster Fingerprint-agent...";
-                // Henter Fingerprint-agenten via ditt proxy-subdomene.
-                const fpModule = await import(
-                    "https://fp.bygningbesiktigelse.no/web/v3/ZZFYiRw2Rbd30yRSoOld"
-                );
-                const fp = await fpModule.load({
-                    endpoint: "https://fp.bygningbesiktigelse.no",
-                });
-
-                statusEl.textContent = "🔍 Henter fingerprint-data...";
-                const result = await fp.get({ extendedResult: true });
-
-                lagreFingerprint(result);
-
-                statusEl.textContent = "✅ Fingerprint hentet!";
-                outputEl.textContent = JSON.stringify(
-                    { ...result, timestamp: new Date().toISOString() },
-                    null,
-                    2
-                );
-            } catch (err) {
-                statusEl.textContent = "❌ Feil ved henting av fingerprint.";
-                outputEl.textContent = err.message;
-                console.error(err);
-            }
-        }
-
-        hentOgVisFingerprint();
+      hentOgVisFingerprint();
     </script>
-</body>
+  </body>
 </html>
